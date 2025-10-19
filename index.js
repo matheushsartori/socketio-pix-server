@@ -37,7 +37,8 @@ app.get("/", (req, res) => {
 });
 
 io.on("connection", (socket) => {
-  console.log("Um cliente se conectou:", socket.id);
+  const sessionId = socket.handshake.query.sessionId || socket.id;
+  console.log(`Um cliente se conectou: ${socket.id} (Session ID: ${sessionId})`);
 
   // Cliente se junta a uma sala específica para notificações PIX
   socket.on("joinRoom", (roomName) => {
@@ -74,7 +75,7 @@ io.on("connection", (socket) => {
 
   // Eventos para rastrear o funil de checkout
   socket.on('trackFunnelStep', (data) => {
-    const { userId, step } = data;
+    const { userId, step, pedidoId } = data; // userId agora é o sessionId
     console.log(`Tracking user ${userId} at step ${step}`);
 
     // Lógica para mover o usuário entre as etapas do funil
@@ -89,17 +90,11 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("Um cliente se desconectou:", socket.id);
-    // Remover o usuário de todas as etapas do funil ao desconectar
+    // Remover o usuário de todas as etapas do funil ao desconectar, usando o sessionId
     for (const step in checkoutFunnel) {
-      checkoutFunnel[step].forEach(userId => {
-        // Isso é simplificado. Em um cenário real, você precisaria de um mapeamento socket.id -> userId
-        // Por enquanto, apenas remove todos os usuários associados a este socket.id se houver um mapeamento.
-        // Para este exemplo, vamos assumir que userId é o socket.id para simplificar o rastreamento de desconexão.
-        // Em um sistema real, o userId seria persistente.
-        if (checkoutFunnel[step].has(socket.id)) {
-          checkoutFunnel[step].delete(socket.id);
-        }
-      });
+      if (checkoutFunnel[step].has(sessionId)) {
+        checkoutFunnel[step].delete(sessionId);
+      }
     }
     emitFunnelUpdate();
   });
