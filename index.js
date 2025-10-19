@@ -33,7 +33,7 @@ io.on("connection", (socket) => {
       console.log(`Notificação PIX enviada para a sala ${data.compra_id}`);
     } else {
       console.warn("Evento pixPayment recebido sem compra_id. Notificação não enviada para sala específica.");
-      io.emit("pixNotification", data); // Fallback: envia para todos se não houver compra_id
+      // Nenhuma notificação enviada se não houver compra_id para garantir canais privados.
     }
   });
 
