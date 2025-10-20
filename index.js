@@ -19,25 +19,6 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
-// Estrutura para armazenar o estado do funil de checkout
-const checkoutFunnel = {
-  'step1_cart': new Set(),
-  'step2_shipping': new Set(),
-  'step3_payment': new Set(),
-  'step4_pix_pending': new Set(),
-  'step5_completed': new Set()
-};
-
-// Função para emitir o estado atual do funil para os clientes admin
-function emitFunnelUpdate() {
-  const funnelData = {};
-  for (const step in checkoutFunnel) {
-    funnelData[step] = checkoutFunnel[step].size;
-  }
-  io.to('admin_funnel').emit('funnelUpdate', funnelData);
-  console.log('Funnel update emitted to admin_funnel:', funnelData);
-}
-
 // ✨ NOVO: Endpoint para servir a página de teste
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
@@ -81,13 +62,6 @@ app.post("/api/emulate-pix", (req, res) => {
   }).catch(err => console.error("Erro ao enviar para webhook.site (socketio-pix-server-emulado):", err));
   console.log(`✅ Notificação PIX emulada enviada para a sala ${compra_id}:`, notificationData);
 
-  // Atualizar o funil de checkout
-  if (checkoutFunnel.step4_pix_pending.has(compra_id)) {
-    checkoutFunnel.step4_pix_pending.delete(compra_id);
-    checkoutFunnel.step5_completed.add(compra_id);
-    emitFunnelUpdate();
-  }
-
   res.json({ 
     success: true, 
     message: `Pagamento PIX emulado para ${compra_id}`,
@@ -110,13 +84,6 @@ io.on("connection", (socket) => {
       socketId: socket.id,
       timestamp: new Date().toISOString()
     });
-  });
-
-  // Cliente admin se junta à sala do funilg
-  socket.on("joinAdminFunnel", () => {
-    socket.join('admin_funnel');
-    console.log(`Admin client ${socket.id} joined admin_funnel room.`);
-    emitFunnelUpdate(); // Emite o estado atual assim que um admin se conecta
   });
 
   // Evento de pagamento PIX (privado)g
@@ -148,32 +115,10 @@ io.on("connection", (socket) => {
         }),
       }).catch(err => console.error("Erro ao enviar para webhook.site (socketio-pix-server):", err));
       console.log(`✅ Notificação PIX enviada para a sala ${paymentData.compra_id}:`, notificationData);
-      
-      // Remove do pix_pending e adiciona ao completed
-      if (checkoutFunnel.step4_pix_pending.has(paymentData.compra_id)) {
-        checkoutFunnel.step4_pix_pending.delete(paymentData.compra_id);
-        checkoutFunnel.step5_completed.add(paymentData.compra_id);
-        emitFunnelUpdate();
-      }
 
     } else {
       console.warn("⚠️ Evento pixPayment recebido sem compra_id. Notificação não enviada para sala específica.");
     }
-  });
-
-  // Eventos para rastrear o funil de checkout
-  socket.on('trackFunnelStep', (data) => {
-    const { userId, step, pedidoId } = data;
-    console.log(`📊 Tracking user ${userId} at step ${step}`);
-
-    // Lógica para mover o usuário entre as etapas do funil
-    for (const s in checkoutFunnel) {
-      if (s !== step) {
-        checkoutFunnel[s].delete(userId);
-      }
-    }
-    checkoutFunnel[step].add(userId);
-    emitFunnelUpdate();
   });
 
   // ✨ NOVO: Ping/Pong para manter conexão ativa
@@ -181,15 +126,28 @@ io.on("connection", (socket) => {
     socket.emit('pong');
   });
 
+  // 🔔 Listener para notificações vindas do webhook PIX
+  socket.on("notifyRoom", (data) => {
+    const { room, event, data: notificationData } = data;
+    console.log(`📢 Recebendo solicitação para notificar sala: ${room}`);
+    console.log(`   - Evento: ${event}`);
+    console.log(`   - Dados:`, notificationData);
+    
+    // Emitir o evento para a sala específica
+    io.to(room).emit(event, notificationData);
+    
+    console.log(`✅ Notificação ${event} enviada para a sala ${room}`);
+    
+    // Confirmar ao remetente que a notificação foi enviada
+    socket.emit('notificationSent', {
+      room,
+      event,
+      timestamp: new Date().toISOString()
+    });
+  });
+
   socket.on("disconnect", () => {
     console.log("❌ Cliente desconectado:", socket.id);
-    // Remover o usuário de todas as etapas do funil ao desconectar
-    for (const step in checkoutFunnel) {
-      if (checkoutFunnel[step].has(sessionId)) {
-        checkoutFunnel[step].delete(sessionId);
-      }
-    }
-    emitFunnelUpdate();
   });
 });
 
