@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -23,9 +24,26 @@ jobs:
       - name: Deploy with SSH
         run: |
           ssh root@89.116.191.136 <<'EOF'
+            set -e  # Para parar em caso de erro
+
+            if [ ! -d "/opt/socketio-pix/.git" ]; then
+              echo "Repositório não encontrado, clonando..."
+              git clone https://github.com/matheushsartori/socketio-pix-server.git /opt/socketio-pix
+            fi
+
             cd /opt/socketio-pix
             git config --global --add safe.directory /opt/socketio-pix
             git pull origin main
-            npm install
-            pm2 restart socketio-pix
+            npm install --production
+
+            # Verifica se o processo PM2 existe
+            if pm2 describe socketio-pix > /dev/null; then
+              echo "Reiniciando processo PM2 existente..."
+              pm2 restart socketio-pix
+            else
+              echo "Iniciando novo processo PM2..."
+              pm2 start npm --name socketio-pix -- start
+            fi
+
+            pm2 save
           EOF
