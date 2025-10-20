@@ -108,23 +108,24 @@ io.on("connection", (socket) => {
   // Evento de pagamento PIX (privado)g
   socket.on("pixPayment", (data) => {
     console.log("💰 Pagamento PIX recebido:", data);
-    if (data.compra_id) {
+    if (data.paymentData && data.paymentData.compra_id) {
+      const paymentData = data.paymentData;
       // ✨ AJUSTADO: Garantir que sempre tenha status PAGO
       const notificationData = {
-        compra_id: data.compra_id,
-        status: data.status || 'PAGO', // ← Sempre enviar status
-        txid: data.txid,
-        valor: data.valor,
+        compra_id: paymentData.compra_id,
+        status: paymentData.status || 'PAGO', // ← Sempre enviar status
+        txid: paymentData.txid,
+        valor: paymentData.valor,
         timestamp: new Date().toISOString()
       };
       
-      io.to(data.compra_id).emit("pixNotification", notificationData);
-      console.log(`✅ Notificação PIX enviada para a sala ${data.compra_id}:`, notificationData);
+      io.to(paymentData.compra_id).emit("pixNotification", notificationData);
+      console.log(`✅ Notificação PIX enviada para a sala ${paymentData.compra_id}:`, notificationData);
       
       // Remove do pix_pending e adiciona ao completed
-      if (checkoutFunnel.step4_pix_pending.has(data.compra_id)) {
-        checkoutFunnel.step4_pix_pending.delete(data.compra_id);
-        checkoutFunnel.step5_completed.add(data.compra_id);
+      if (checkoutFunnel.step4_pix_pending.has(paymentData.compra_id)) {
+        checkoutFunnel.step4_pix_pending.delete(paymentData.compra_id);
+        checkoutFunnel.step5_completed.add(paymentData.compra_id);
         emitFunnelUpdate();
       }
 
