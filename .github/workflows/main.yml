@@ -1,39 +1,21 @@
-name: Deploy to VPS
-
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Install SSH Key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          known_hosts: 'just-a-placeholder-so-we-dont-get-errors'
-
-      - name: Adding Known Hosts
-        run: ssh-keyscan -H 89.116.191.136 >> ~/.ssh/known_hosts
-
       - name: Deploy with SSH
         run: |
-          ssh root@89.116.191.136 <<'EOF'
+          ssh root@89.116.191.136 '
+            if [ ! -d "/opt/socketio-pix/.git" ]; then
+              echo "Repositório não encontrado, clonando...";
+              git clone https://github.com/matheushsartori/socketio-pix-server.git /opt/socketio-pix;
+            fi;
 
+            cd /opt/socketio-pix;
+            git config --global --add safe.directory /opt/socketio-pix;
+            git pull origin main;
+            npm install;
 
-
-
-            cd /opt/socketio-pix
-            git config --global --add safe.directory /opt/socketio-pix
-            git pull origin main
-            npm install
-
-
-
-            pm2 restart socketio-pix
-          EOF
+            if ! pm2 describe socketio-pix-server > /dev/null; then
+              echo "Processo PM2 \'socketio-pix-server\' não encontrado, iniciando...";
+              pm2 start npm --name socketio-pix-server -- start;
+            else
+              echo "Processo PM2 \'socketio-pix-server\' encontrado, reiniciando...";
+              pm2 restart socketio-pix-server;
+            fi;
+          '
