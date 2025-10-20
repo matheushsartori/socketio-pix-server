@@ -38,12 +38,19 @@ app.get("/", (req, res) => {
 
 io.on("connection", (socket) => {
   const sessionId = socket.handshake.query.sessionId || socket.id;
-  console.log(`Um cliente se conectou: ${socket.id} (Session ID: ${sessionId})`);
+  console.log(`✅ Cliente conectado: ${socket.id} (Session ID: ${sessionId})`);
 
   // Cliente se junta a uma sala específica para notificações PIX
   socket.on("joinRoom", (roomName) => {
     socket.join(roomName);
-    console.log(`Cliente ${socket.id} entrou na sala: ${roomName}`);
+    console.log(`🚪 Cliente ${socket.id} entrou na sala: ${roomName}`);
+    
+    // ✨ NOVO: Confirmar entrada na sala
+    socket.emit('roomJoined', { 
+      roomId: roomName,
+      socketId: socket.id,
+      timestamp: new Date().toISOString()
+    });
   });
 
   // Cliente admin se junta à sala do funil
@@ -55,10 +62,19 @@ io.on("connection", (socket) => {
 
   // Evento de pagamento PIX (privado)
   socket.on("pixPayment", (data) => {
-    console.log("Pagamento PIX recebido:", data);
+    console.log("💰 Pagamento PIX recebido:", data);
     if (data.compra_id) {
-      io.to(data.compra_id).emit("pixNotification", data); // Envia a notificação apenas para a sala específica
-      console.log(`Notificação PIX enviada para a sala ${data.compra_id}`);
+      // ✨ AJUSTADO: Garantir que sempre tenha status PAGO
+      const notificationData = {
+        compra_id: data.compra_id,
+        status: data.status || 'PAGO', // ← Sempre enviar status
+        txid: data.txid,
+        valor: data.valor,
+        timestamp: new Date().toISOString()
+      };
+      
+      io.to(data.compra_id).emit("pixNotification", notificationData);
+      console.log(`✅ Notificação PIX enviada para a sala ${data.compra_id}:`, notificationData);
       
       // Remove do pix_pending e adiciona ao completed
       if (checkoutFunnel.step4_pix_pending.has(data.compra_id)) {
@@ -68,15 +84,14 @@ io.on("connection", (socket) => {
       }
 
     } else {
-      console.warn("Evento pixPayment recebido sem compra_id. Notificação não enviada para sala específica.");
-      // Nenhuma notificação enviada se não houver compra_id para garantir canais privados.
+      console.warn("⚠️ Evento pixPayment recebido sem compra_id. Notificação não enviada para sala específica.");
     }
   });
 
   // Eventos para rastrear o funil de checkout
   socket.on('trackFunnelStep', (data) => {
-    const { userId, step, pedidoId } = data; // userId agora é o sessionId
-    console.log(`Tracking user ${userId} at step ${step}`);
+    const { userId, step, pedidoId } = data;
+    console.log(`📊 Tracking user ${userId} at step ${step}`);
 
     // Lógica para mover o usuário entre as etapas do funil
     for (const s in checkoutFunnel) {
@@ -88,9 +103,14 @@ io.on("connection", (socket) => {
     emitFunnelUpdate();
   });
 
+  // ✨ NOVO: Ping/Pong para manter conexão ativa
+  socket.on('ping', () => {
+    socket.emit('pong');
+  });
+
   socket.on("disconnect", () => {
-    console.log("Um cliente se desconectou:", socket.id);
-    // Remover o usuário de todas as etapas do funil ao desconectar, usando o sessionId
+    console.log("❌ Cliente desconectado:", socket.id);
+    // Remover o usuário de todas as etapas do funil ao desconectar
     for (const step in checkoutFunnel) {
       if (checkoutFunnel[step].has(sessionId)) {
         checkoutFunnel[step].delete(sessionId);
@@ -101,6 +121,7 @@ io.on("connection", (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Servidor Socket.io rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor Socket.io rodando na porta ${PORT}`);
+  console.log(`📡 Sistema de notificações PIX ativo`);
 });
 
