@@ -1,6 +1,7 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
@@ -12,6 +13,10 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 3000;
+
+// Middleware para servir arquivos estáticos
+app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json());
 
 // Estrutura para armazenar o estado do funil de checkout
 const checkoutFunnel = {
@@ -32,8 +37,48 @@ function emitFunnelUpdate() {
   console.log('Funnel update emitted to admin_funnel:', funnelData);
 }
 
+// ✨ NOVO: Endpoint para servir a página de teste
 app.get("/", (req, res) => {
-  res.send("Servidor Socket.io para Notificações PIX e Funil de Checkout está rodando!");
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// ✨ NOVO: Endpoint para emular pagamento PIX via HTTP POST
+app.post("/api/emulate-pix", (req, res) => {
+  const { compra_id, valor, txid } = req.body;
+
+  if (!compra_id) {
+    return res.status(400).json({ 
+      success: false, 
+      error: "compra_id é obrigatório" 
+    });
+  }
+
+  console.log(`💰 Emulando pagamento PIX para compra_id: ${compra_id}`);
+
+  const notificationData = {
+    compra_id: compra_id,
+    status: 'PAGO',
+    txid: txid || `TXID_EMULADO_${Date.now()}`,
+    valor: valor || 100.00,
+    timestamp: new Date().toISOString()
+  };
+
+  // Emitir notificação para a sala específica da compra
+  io.to(compra_id).emit("pixNotification", notificationData);
+  console.log(`✅ Notificação PIX emulada enviada para a sala ${compra_id}:`, notificationData);
+
+  // Atualizar o funil de checkout
+  if (checkoutFunnel.step4_pix_pending.has(compra_id)) {
+    checkoutFunnel.step4_pix_pending.delete(compra_id);
+    checkoutFunnel.step5_completed.add(compra_id);
+    emitFunnelUpdate();
+  }
+
+  res.json({ 
+    success: true, 
+    message: `Pagamento PIX emulado para ${compra_id}`,
+    data: notificationData
+  });
 });
 
 io.on("connection", (socket) => {
@@ -123,5 +168,6 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`🚀 Servidor Socket.io rodando na porta ${PORT}`);
   console.log(`📡 Sistema de notificações PIX ativo`);
+  console.log(`🌐 Interface web disponível em http://localhost:${PORT}`);
 });
 

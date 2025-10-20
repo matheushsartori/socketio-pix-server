@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emulador de Pagamento PIX - Socket.IO</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .status-box {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status-box.success {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+            display: block;
+        }
+
+        .status-box.error {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+            display: block;
+        }
+
+        .status-box.info {
+            background: #d1ecf1;
+            border: 2px solid #17a2b8;
+            color: #0c5460;
+            display: block;
+        }
+
+        .status-box h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .status-box p {
+            font-size: 14px;
+            margin: 5px 0;
+        }
+
+        .status-box code {
+            background: rgba(0, 0, 0, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 30px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background: #28a745;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .info-section {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-section h4 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .info-section p {
+            color: #666;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #667eea;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💳 Emulador de Pagamento PIX</h1>
+            <p>Teste notificações de pagamento em tempo real via Socket.IO</p>
+        </div>
+
+        <div class="connection-status">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <span id="statusText">Conectando ao servidor...</span>
+        </div>
+
+        <div class="info-section">
+            <h4>📋 Como usar:</h4>
+            <p>1. Abra o checkout em outra aba com um compraId<br>
+               2. Insira o mesmo compraId aqui<br>
+               3. Clique em "Emular Pagamento PIX"<br>
+               4. O checkout será atualizado automaticamente</p>
+        </div>
+
+        <form id="pixForm">
+            <div class="form-group">
+                <label for="compraId">ID da Compra (compraId) *</label>
+                <input 
+                    type="text" 
+                    id="compraId" 
+                    placeholder="Ex: cmgyf1c0y00073ga88su2ujic" 
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="valor">Valor (R$)</label>
+                <input 
+                    type="number" 
+                    id="valor" 
+                    placeholder="100.00" 
+                    value="100.00" 
+                    step="0.01"
+                    min="0"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="txid">TXID (Opcional)</label>
+                <input 
+                    type="text" 
+                    id="txid" 
+                    placeholder="Será gerado automaticamente se não preenchido"
+                >
+            </div>
+
+            <div class="button-group">
+                <button type="submit" class="btn-primary" id="submitBtn">
+                    ✅ Emular Pagamento PIX
+                </button>
+                <button type="reset" class="btn-secondary">
+                    🔄 Limpar
+                </button>
+            </div>
+        </form>
+
+        <div class="status-box" id="statusBox"></div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const statusBox = document.getElementById('statusBox');
+        const pixForm = document.getElementById('pixForm');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Gerenciar conexão do Socket.IO
+        socket.on('connect', () => {
+            console.log('✅ Conectado ao servidor Socket.IO');
+            statusIndicator.classList.add('connected');
+            statusText.textContent = '✅ Conectado ao servidor';
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ Desconectado do servidor Socket.IO');
+            statusIndicator.classList.remove('connected');
+            statusText.textContent = '❌ Desconectado do servidor';
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Erro de conexão:', error);
+            statusText.textContent = '⚠️ Erro de conexão';
+        });
+
+        // Submeter formulário
+        pixForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const compraId = document.getElementById('compraId').value.trim();
+            const valor = parseFloat(document.getElementById('valor').value) || 100.00;
+            const txid = document.getElementById('txid').value.trim();
+
+            if (!compraId) {
+                showStatus('error', 'Erro', 'Por favor, insira um ID de compra válido.');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loading"></span>Enviando...';
+
+            try {
+                const response = await fetch('/api/emulate-pix', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        compra_id: compraId,
+                        valor: valor,
+                        txid: txid || undefined
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus('success', '✅ Sucesso!', 
+                        `Notificação de pagamento emulada para a compra <code>${compraId}</code>.<br>
+                         Valor: R$ ${valor.toFixed(2)}<br>
+                         TXID: <code>${data.data.txid}</code><br><br>
+                         O checkout deve ser atualizado automaticamente em poucos segundos.`);
+                    pixForm.reset();
+                } else {
+                    showStatus('error', 'Erro', data.error || 'Erro ao emular pagamento.');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showStatus('error', 'Erro de Conexão', 
+                    'Não foi possível conectar ao servidor. Verifique sua conexão.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '✅ Emular Pagamento PIX';
+            }
+        });
+
+        function showStatus(type, title, message) {
+            statusBox.className = `status-box ${type}`;
+            statusBox.innerHTML = `<h3>${title}</h3><p>${message}</p>`;
+        }
+
+        // Log inicial
+        console.log('🚀 Emulador de Pagamento PIX carregado');
+    </script>
+</body>
+</html>
+
