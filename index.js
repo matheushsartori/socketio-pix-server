@@ -105,7 +105,7 @@ io.on("connection", (socket) => {
     emitFunnelUpdate(); // Emite o estado atual assim que um admin se conecta
   });
 
-  // Evento de pagamento PIX (privado)
+  // Evento de pagamento PIX (privado)g
   socket.on("pixPayment", (data) => {
     console.log("💰 Pagamento PIX recebido:", data);
     if (data.compra_id) {
