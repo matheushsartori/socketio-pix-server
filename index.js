@@ -2,6 +2,7 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
+const fetch = require("node-fetch");
 
 const app = express();
 const server = http.createServer(app);
@@ -64,7 +65,20 @@ app.post("/api/emulate-pix", (req, res) => {
   };
 
   // Emitir notificação para a sala específica da compra
-  io.to(compra_id).emit("pixNotification", notificationData);
+    io.to(compra_id).emit("pixNotification", notificationData);
+
+  // Enviar para o webhook.site (emulação)
+  fetch("https://webhook.site/2b6f0783-8cf1-435b-b945-3b1395f28d66", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      origin: "socketio-pix-server-emulated",
+      event: "pixNotification",
+      ...notificationData,
+    }),
+  }).catch(err => console.error("Erro ao enviar para webhook.site (socketio-pix-server-emulado):", err));
   console.log(`✅ Notificação PIX emulada enviada para a sala ${compra_id}:`, notificationData);
 
   // Atualizar o funil de checkout
@@ -120,6 +134,19 @@ io.on("connection", (socket) => {
       };
       
       io.to(paymentData.compra_id).emit("pixNotification", notificationData);
+
+      // Enviar para o webhook.site
+      fetch("https://webhook.site/2b6f0783-8cf1-435b-b945-3b1395f28d66", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          origin: "socketio-pix-server",
+          event: "pixNotification",
+          ...notificationData,
+        }),
+      }).catch(err => console.error("Erro ao enviar para webhook.site (socketio-pix-server):", err));
       console.log(`✅ Notificação PIX enviada para a sala ${paymentData.compra_id}:`, notificationData);
       
       // Remove do pix_pending e adiciona ao completed
