@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emulador PIX</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f4f4f4;
+            margin: 0;
+        }
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Emulador de Pagamento PIX</h1>
+        <p>Insira o <strong>compraId</strong> para simular o pagamento:</p>
+        <input type="text" id="compraIdInput" placeholder="Ex: cmgyf1c0y00073ga88su2ujic">
+        <button onclick="emulatePixPayment()">Emular Pagamento</button>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const socket = io(); // Conecta ao servidor Socket.IO na mesma origem
+
+        socket.on("connect", () => {
+            console.log("Conectado ao servidor Socket.IO");
+            document.getElementById("status").innerText = "Conectado ao servidor.";
+        });
+
+        socket.on("disconnect", () => {
+            console.log("Desconectado do servidor Socket.IO");
+            document.getElementById("status").innerText = "Desconectado do servidor.";
+        });
+
+        function emulatePixPayment() {
+            const compraId = document.getElementById("compraIdInput").value;
+            if (!compraId) {
+                alert("Por favor, insira um compraId.");
+                return;
+            }
+
+            // Entrar na sala da compra para garantir que a notificação seja recebida
+            socket.emit("joinRoom", compraId);
+            console.log(`Entrando na sala: ${compraId}`);
+
+            const notificationData = {
+                compra_id: compraId,
+                status: "PAGO",
+                txid: `TXID_EMULADO_${Date.now()}`,
+                valor: 10.00, // Valor fixo para emulação
+                timestamp: new Date().toISOString()
+            };
+
+            // Emitir o evento pixPayment para o servidor
+            socket.emit("pixPayment", notificationData);
+            console.log("Evento pixPayment emitido:", notificationData);
+
+            document.getElementById("status").innerText = `Emulação enviada para ${compraId}. Verifique o checkout.`;
+        }
+    </script>
+</body>
+</html>
+
