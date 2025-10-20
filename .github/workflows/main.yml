@@ -24,9 +24,16 @@ jobs:
       - name: Deploy with SSH
         run: |
           ssh root@89.116.191.136 <<'EOF'
+            if [ ! -d "/opt/socketio-pix" ]; then
+              echo "Diretório /opt/socketio-pix não encontrado. Clonando repositório..."
+              git clone https://github.com/matheushsartori/socketio-pix-server.git /opt/socketio-pix
+            fi
             cd /opt/socketio-pix
             git config --global --add safe.directory /opt/socketio-pix
             git pull origin main
             npm install
+            # Se você estiver usando Docker, o comando para reiniciar seria diferente.
+            # Se pm2 não for usado, substitua por seu comando de reinício do Docker.
+            # Exemplo para Docker Compose: docker-compose up -d --build
             pm2 restart socketio-pix
           EOF
