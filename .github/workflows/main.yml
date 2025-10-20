@@ -1,21 +1,56 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install SSH Key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: 'just-a-placeholder-so-we-dont-get-errors'
+
+      - name: Add Known Hosts
+        run: ssh-keyscan -H 89.116.191.136 >> ~/.ssh/known_hosts
+
       - name: Deploy with SSH
         run: |
-          ssh root@89.116.191.136 '
-            if [ ! -d "/opt/socketio-pix/.git" ]; then
-              echo "Repositório não encontrado, clonando...";
-              git clone https://github.com/matheushsartori/socketio-pix-server.git /opt/socketio-pix;
-            fi;
+          ssh root@89.116.191.136 << 'EOF'
+            echo "🚀 Iniciando deploy..."
 
-            cd /opt/socketio-pix;
-            git config --global --add safe.directory /opt/socketio-pix;
-            git pull origin main;
-            npm install;
+            # Caminho do projeto
+            cd /opt/socketio-pix || exit 1
 
-            if ! pm2 describe socketio-pix-server > /dev/null; then
-              echo "Processo PM2 \'socketio-pix-server\' não encontrado, iniciando...";
-              pm2 start npm --name socketio-pix-server -- start;
-            else
-              echo "Processo PM2 \'socketio-pix-server\' encontrado, reiniciando...";
-              pm2 restart socketio-pix-server;
-            fi;
-          '
+            # Garantir que o diretório é seguro para o git
+            git config --global --add safe.directory /opt/socketio-pix
+
+            # Atualizar o repositório
+            git fetch origin main
+            git reset --hard origin/main
+            echo "✅ Código atualizado com sucesso."
+
+            # Instalar dependências
+            npm install --production
+            echo "📦 Dependências instaladas."
+
+            # Remover qualquer processo antigo duplicado
+            echo "🧹 Limpando processos antigos..."
+            pm2 delete all || true
+
+            # Iniciar apenas o processo desejado
+            echo "🔁 Iniciando processo 'socketio-pix'..."
+            pm2 start npm --name "socketio-pix" -- run start
+
+            # Salvar configuração do PM2
+            pm2 save
+
+            echo "✅ Deploy concluído com sucesso!"
+          EOF
