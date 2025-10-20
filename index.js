@@ -98,7 +98,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Cliente admin se junta à sala do funil
+  // Cliente admin se junta à sala do funilg
   socket.on("joinAdminFunnel", () => {
     socket.join('admin_funnel');
     console.log(`Admin client ${socket.id} joined admin_funnel room.`);
