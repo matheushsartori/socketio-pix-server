@@ -8,6 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -24,26 +25,38 @@ jobs:
       - name: Deploy with SSH
         run: |
           ssh root@89.116.191.136 <<'EOF'
-            set -e  # Para parar em caso de erro
+            set -e  # Para parar o script se der erro
 
+            echo "🚀 Iniciando deploy no servidor remoto..."
+
+            # Verifica se o repositório existe e está íntegro
             if [ ! -d "/opt/socketio-pix/.git" ]; then
-              echo "Repositório não encontrado, clonando..."
+              echo "📁 Repositório inválido ou ausente, recriando diretório..."
+              rm -rf /opt/socketio-pix
               git clone https://github.com/matheushsartori/socketio-pix-server.git /opt/socketio-pix
             fi
 
             cd /opt/socketio-pix
+
+            echo "🔄 Atualizando repositório..."
             git config --global --add safe.directory /opt/socketio-pix
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "📦 Instalando dependências..."
             npm install --production
 
-            # Verifica se o processo PM2 existe
+            echo "⚙️  Gerenciando processo PM2..."
             if pm2 describe socketio-pix > /dev/null; then
-              echo "Reiniciando processo PM2 existente..."
+              echo "♻️  Reiniciando processo existente..."
               pm2 restart socketio-pix
             else
-              echo "Iniciando novo processo PM2..."
+              echo "🆕 Iniciando novo processo..."
               pm2 start npm --name socketio-pix -- start
             fi
 
+            echo "💾 Salvando estado PM2..."
             pm2 save
+
+            echo "✅ Deploy concluído com sucesso!"
           EOF
